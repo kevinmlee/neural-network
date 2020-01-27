@@ -9,18 +9,31 @@ const trainingData = data.map(item => ({
 }));
 
 train = data => {
-  console.log("Starting training...");
+  console.log("\n - Training started\n");
   network.train(data, {
-    iterations: 50,
+    iterations: 100,
     log: true
   });
-  console.log("Finished training...");
+  console.log("\n - Training complete\n");
 };
 
 execute = input => {
-  console.log(`Testing: "${input}"`);
+  console.log("----------------------------------");
+  console.log(`Running against input:`);
+  console.log("----------------------------------");
+  console.log(`"${input}"`);
+
   let results = network.run(input);
-  console.log(`Best guess: ${results}`);
+
+  console.log("\n----------------------------------");
+  console.log(`Best guess:`);
+  console.log("----------------------------------");
+  console.log(`${results}\n\n`);
+};
+
+// checks if the trainingData has the input
+checkForInput = input => {
+  console.log(trainingData.some(item => item.text === input));
 };
 
 train(trainingData);
@@ -28,4 +41,3 @@ train(trainingData);
 execute(
   "We are in very close communication with China concerning the virus. Very few cases reported in USA, but strongly on watch. We have offered China and President Xi any help that is necessary. Our experts are extraordinary!"
 );
-//execute('the code has some bugs');
