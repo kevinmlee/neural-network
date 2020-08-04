@@ -75,6 +75,29 @@ class GLKernel extends Kernel {
     return result[0] === 2 && result[1] === 1511;
   }
 
+  static getIsSpeedTacticSupported() {
+    function kernelFunction(value) {
+      return value[this.thread.x];
+    }
+    const kernel = new this(kernelFunction.toString(), {
+      context: this.testContext,
+      canvas: this.testCanvas,
+      validate: false,
+      output: [4],
+      returnType: 'Number',
+      precision: 'unsigned',
+      tactic: 'speed',
+    });
+    const args = [
+      [0, 1, 2, 3]
+    ];
+    kernel.build.apply(kernel, args);
+    kernel.run.apply(kernel, args);
+    const result = kernel.renderOutput();
+    kernel.destroy(true);
+    return Math.round(result[0]) === 0 && Math.round(result[1]) === 1 && Math.round(result[2]) === 2 && Math.round(result[3]) === 3;
+  }
+
   /**
    * @abstract
    */
@@ -95,6 +118,7 @@ class GLKernel extends Kernel {
     return Object.freeze({
       isFloatRead: this.getIsFloatRead(),
       isIntegerDivisionAccurate: this.getIsIntegerDivisionAccurate(),
+      isSpeedTacticSupported: this.getIsSpeedTacticSupported(),
       isTextureFloat: this.getIsTextureFloat(),
       isDrawBuffers,
       kernelMap: isDrawBuffers,
@@ -321,6 +345,8 @@ class GLKernel extends Kernel {
     this.compiledFragmentShader = null;
     this.compiledVertexShader = null;
     this.switchingKernels = null;
+    this._textureSwitched = null;
+    this._mappedTextureSwitched = null;
   }
 
   checkTextureSize() {
@@ -789,7 +815,7 @@ class GLKernel extends Kernel {
   }
 
   renderTexture() {
-    return this.texture.clone();
+    return this.immutable ? this.texture.clone() : this.texture;
   }
   readPackedPixelsToUint8Array() {
     if (this.precision !== 'unsigned') throw new Error('Requires this.precision to be "unsigned"');
@@ -850,8 +876,14 @@ class GLKernel extends Kernel {
     const result = {
       result: this.renderOutput(),
     };
-    for (let i = 0; i < this.subKernels.length; i++) {
-      result[this.subKernels[i].property] = this.mappedTextures[i].clone();
+    if (this.immutable) {
+      for (let i = 0; i < this.subKernels.length; i++) {
+        result[this.subKernels[i].property] = this.mappedTextures[i].clone();
+      }
+    } else {
+      for (let i = 0; i < this.subKernels.length; i++) {
+        result[this.subKernels[i].property] = this.mappedTextures[i];
+      }
     }
     return result;
   }
@@ -904,12 +936,14 @@ class GLKernel extends Kernel {
         this.texture.delete();
       }
       this.texture = null;
-      if (this.mappedTextures) {
+      this._setupOutputTexture();
+      if (this.mappedTextures && this.mappedTextures.length > 0) {
         for (let i = 0; i < this.mappedTextures.length; i++) {
           this.mappedTextures[i].delete();
         }
+        this.mappedTextures = null;
+        this._setupSubOutputTextures();
       }
-      this.mappedTextures = null;
     } else {
       this.output = newOutput;
     }
@@ -932,6 +966,7 @@ class GLKernel extends Kernel {
   }
   getVariablePrecisionString(textureSize = this.texSize, tactic = this.tactic, isInt = false) {
     if (!tactic) {
+      if (!this.constructor.features.isSpeedTacticSupported) return 'highp';
       const low = this.constructor.features[isInt ? 'lowIntPrecision' : 'lowFloatPrecision'];
       const medium = this.constructor.features[isInt ? 'mediumIntPrecision' : 'mediumFloatPrecision'];
       const high = this.constructor.features[isInt ? 'highIntPrecision' : 'highFloatPrecision'];
@@ -964,12 +999,14 @@ class GLKernel extends Kernel {
    * @param {GLTexture} arg
    */
   updateTextureArgumentRefs(kernelValue, arg) {
+    if (!this.immutable) return;
     if (this.texture.texture === arg.texture) {
       const { prevArg } = kernelValue;
       if (prevArg) {
         if (prevArg.texture._refs === 1) {
           this.texture.delete();
           this.texture = prevArg.clone();
+          this._textureSwitched = true;
         }
         prevArg.delete();
       }
@@ -984,6 +1021,7 @@ class GLKernel extends Kernel {
             if (prevArg.texture._refs === 1) {
               mappedTexture.delete();
               mappedTextures[i] = prevArg.clone();
+              this._mappedTextureSwitched[i] = true;
             }
             prevArg.delete();
           }
@@ -991,6 +1029,17 @@ class GLKernel extends Kernel {
           return;
         }
       }
+    }
+  }
+
+  onActivate(previousKernel) {
+    this._textureSwitched = true;
+    this.texture = previousKernel.texture;
+    if (this.mappedTextures) {
+      for (let i = 0; i < this.mappedTextures.length; i++) {
+        this._mappedTextureSwitched[i] = true;
+      }
+      this.mappedTextures = previousKernel.mappedTextures;
     }
   }
 

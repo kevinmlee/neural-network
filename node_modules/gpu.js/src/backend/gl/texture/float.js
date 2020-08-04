@@ -10,11 +10,9 @@ class GLTextureFloat extends GLTexture {
     this.type = 'ArrayTexture(1)';
   }
   renderRawOutput() {
-    const { context: gl, size } = this;
-    if (!this._framebuffer) {
-      this._framebuffer = gl.createFramebuffer();
-    }
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this._framebuffer);
+    const gl = this.context;
+    const size = this.size;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.framebuffer());
     gl.framebufferTexture2D(
       gl.FRAMEBUFFER,
       gl.COLOR_ATTACHMENT0,
