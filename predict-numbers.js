@@ -1,40 +1,76 @@
 const brain = require("brain.js");
+const axios = require("axios");
+const dayjs = require("dayjs");
 
-const net = new brain.recurrent.LSTMTimeStep({
-  inputSize: 2,
-  hiddenLayers: [10],
-  outputSize: 2,
-});
+const ticker = "LUNA";
+const pair = `${ticker}USD`;
 
-// Same test as previous, but combined on a single set
-const trainingData = [
-  [
-    [1, 5],
-    [2, 4],
-    [3, 3],
-    [4, 2],
-    [5, 1],
-  ],
-];
+const dateNow = dayjs().unix();
+const dateAfter = dayjs(
+  new Date().setFullYear(new Date().getFullYear() - 1)
+).unix();
 
-net.train(trainingData, { log: true, errorThresh: 0.09 });
+const coinGeckoURL =
+  "https://api.coingecko.com/api/v3/coins/terra-luna/market_chart/range?vs_currency=usd&from=" +
+  dateAfter +
+  "&to=" +
+  dateNow;
 
-const closeToFiveAndOne = net.run([
-  [1, 5],
-  [2, 4],
-  [3, 3],
-  [4, 2],
-]);
+const normalize = (x) => x / 10;
+const denormalize = (x) => x * 10;
 
-console.log(closeToFiveAndOne);
+axios.get(coinGeckoURL, {}).then(
+  (response) => {
+    const data = response.data.prices;
+    let seedData = [];
 
-// now we're cookin' with gas!
-const forecast = net.forecast(
-  [
-    [1, 5],
-    [2, 4],
-  ],
-  3
+    for (const price of data) seedData.push(price[1]);
+
+    trainAndPredict(seedData);
+  },
+  (error) => {
+    console.log(error);
+  }
 );
 
-console.log("next 3 predictions", forecast);
+trainAndPredict = (seedData) => {
+  console.log("Seed data", seedData);
+
+  const config = {
+    iterations: 5000,
+    learningRate: 0.005,
+    errorThresh: 0.02,
+    log: true,
+  };
+
+  const net1 = new brain.recurrent.RNNTimeStep();
+  const net2 = new brain.recurrent.LSTMTimeStep();
+  const net3 = new brain.recurrent.GRUTimeStep();
+
+  const normalisedTrainingData = seedData.map(normalize);
+  //console.log("Input array", normalisedTrainingData);
+
+  console.log("\n - Training started. Please wait.\n");
+  net1.train([normalisedTrainingData], config);
+  net2.train([normalisedTrainingData], config);
+  net3.train([normalisedTrainingData], config);
+  console.log("\n - Training complete\n");
+
+  const output1 = net1.forecast(normalisedTrainingData, 10);
+  const output2 = net2.forecast(normalisedTrainingData, 10);
+  const output3 = net3.forecast(normalisedTrainingData, 10);
+
+  const outputRun1 = net1.run(normalisedTrainingData);
+  const outputRun2 = net2.run(normalisedTrainingData);
+  const outputRun3 = net3.run(normalisedTrainingData);
+
+  console.log("1) Forecast: ", output1.map(denormalize));
+  console.log("2) Forecast: ", output2.map(denormalize));
+  console.log("3) Forecast: ", output3.map(denormalize));
+
+  console.log("1) Run: ", outputRun1 * 10);
+  console.log("2) Run: ", outputRun2 * 10);
+  console.log("3) Run: ", outputRun3 * 10);
+};
+
+console.log(coinGeckoURL);

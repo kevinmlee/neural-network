@@ -19,7 +19,9 @@
   },
   "homepage": "https://github.com/kevinmlee/neural-network#readme",
   "dependencies": {
+    "axios": "^0.26.1",
     "brain.js": "^2.0.0-beta.15",
+    "dayjs": "^1.11.1",
     "prompt": "^1.3.0"
   }
 }
