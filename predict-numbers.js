@@ -2,9 +2,6 @@ const brain = require("brain.js");
 const axios = require("axios");
 const dayjs = require("dayjs");
 
-const ticker = "LUNA";
-const pair = `${ticker}USD`;
-
 const dateNow = dayjs().unix();
 const dateAfter = dayjs(
   new Date().setFullYear(new Date().getFullYear() - 1)
@@ -28,9 +25,7 @@ axios.get(coinGeckoURL, {}).then(
 
     trainAndPredict(seedData);
   },
-  (error) => {
-    console.log(error);
-  }
+  (error) => console.log(error)
 );
 
 trainAndPredict = (seedData) => {
