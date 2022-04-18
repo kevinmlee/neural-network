@@ -72,5 +72,3 @@ trainAndPredict = (seedData) => {
   console.log("2) Run: ", outputRun2 * 10);
   console.log("3) Run: ", outputRun3 * 10);
 };
-
-console.log(coinGeckoURL);
