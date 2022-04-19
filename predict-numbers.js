@@ -1,20 +1,29 @@
 const brain = require("brain.js");
 const axios = require("axios");
 const dayjs = require("dayjs");
+const fs = require("fs");
 
 const dateNow = dayjs().unix();
 const dateAfter = dayjs(
   new Date().setFullYear(new Date().getFullYear() - 1)
 ).unix();
 
+const ticker = "terra-luna";
+
 const coinGeckoURL =
-  "https://api.coingecko.com/api/v3/coins/terra-luna/market_chart/range?vs_currency=usd&from=" +
+  "https://api.coingecko.com/api/v3/coins/" +
+  ticker +
+  "/market_chart/range?vs_currency=usd&from=" +
   dateAfter +
   "&to=" +
   dateNow;
 
 const normalize = (x) => x / 10;
 const denormalize = (x) => x * 10;
+
+const net1 = new brain.recurrent.RNNTimeStep();
+const net2 = new brain.recurrent.LSTMTimeStep();
+const net3 = new brain.recurrent.GRUTimeStep();
 
 axios.get(coinGeckoURL, {}).then(
   (response) => {
@@ -27,39 +36,40 @@ axios.get(coinGeckoURL, {}).then(
 
     for (const price of data) seedData.push(price[1]);
 
-    trainAndPredict(seedData);
+    predict(seedData);
   },
   (error) => console.log(error)
 );
 
-trainAndPredict = (seedData) => {
-  const config = {
-    iterations: 5000,
-    learningRate: 0.005,
-    errorThresh: 0.02,
-    //log: true,
-  };
+predict = (seedData) => {
+  const normalizedTrainingData = seedData.map(normalize);
+  train(normalizedTrainingData);
 
-  const net1 = new brain.recurrent.RNNTimeStep();
-  const net2 = new brain.recurrent.LSTMTimeStep();
-  const net3 = new brain.recurrent.GRUTimeStep();
+  /*
+  console.log("\n - Looking for trained network...");
+  if (fs.existsSync(ticker + "-net1.json")) {
+    console.log("- Reading trained network from file");
+    const trainedNet1 = JSON.parse(fs.readFileSync(ticker + "-net1.json"));
+    const trainedNet2 = JSON.parse(fs.readFileSync(ticker + "-net2.json"));
+    const trainedNet3 = JSON.parse(fs.readFileSync(ticker + "-net3.json"));
 
-  const normalisedTrainingData = seedData.map(normalize);
-  //console.log("Input array", normalisedTrainingData);
+    net1.fromJSON(trainedNet1);
+    net2.fromJSON(trainedNet2);
+    net3.fromJSON(trainedNet3);
+  } else {
+    console.log("- No trained network found. Training...");
+    train(normalizedTrainingData);
+    console.log("- Neural network ready.");
+  }
+  */
 
-  console.log("\n - Training started. Please wait.\n");
-  net1.train([normalisedTrainingData], config);
-  net2.train([normalisedTrainingData], config);
-  net3.train([normalisedTrainingData], config);
-  console.log("\n - Training complete\n");
+  const output1 = net1.forecast(normalizedTrainingData, 10);
+  const output2 = net2.forecast(normalizedTrainingData, 10);
+  const output3 = net3.forecast(normalizedTrainingData, 10);
 
-  const output1 = net1.forecast(normalisedTrainingData, 10);
-  const output2 = net2.forecast(normalisedTrainingData, 10);
-  const output3 = net3.forecast(normalisedTrainingData, 10);
-
-  const outputRun1 = net1.run(normalisedTrainingData);
-  const outputRun2 = net2.run(normalisedTrainingData);
-  const outputRun3 = net3.run(normalisedTrainingData);
+  const outputRun1 = net1.run(normalizedTrainingData);
+  const outputRun2 = net2.run(normalizedTrainingData);
+  const outputRun3 = net3.run(normalizedTrainingData);
 
   console.log("1) Forecast: ", output1.map(denormalize));
   console.log("2) Forecast: ", output2.map(denormalize));
@@ -68,4 +78,24 @@ trainAndPredict = (seedData) => {
   console.log("1) Run: ", outputRun1 * 10);
   console.log("2) Run: ", outputRun2 * 10);
   console.log("3) Run: ", outputRun3 * 10);
+};
+
+train = (normalizedTrainingData) => {
+  const config = {
+    iterations: 6000,
+    learningRate: 0.005,
+    errorThresh: 0.02,
+    //log: true,
+  };
+
+  console.log("\n - Training started. Please wait.\n");
+  net1.train([normalizedTrainingData], config);
+  net2.train([normalizedTrainingData], config);
+  net3.train([normalizedTrainingData], config);
+  console.log("\n - Training complete\n");
+
+  // save the trained network
+  fs.writeFileSync(ticker + "-net1.json", JSON.stringify(net1.toJSON()));
+  fs.writeFileSync(ticker + "-net2.json", JSON.stringify(net2.toJSON()));
+  fs.writeFileSync(ticker + "-net3.json", JSON.stringify(net3.toJSON()));
 };
