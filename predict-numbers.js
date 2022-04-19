@@ -21,6 +21,10 @@ axios.get(coinGeckoURL, {}).then(
     const data = response.data.prices;
     let seedData = [];
 
+    // output data to console so we can see the dates and prices that we are working with
+    for (const day of data)
+      console.log(dayjs(day[0]).format("DD/MM/YYYY"), day[1]);
+
     for (const price of data) seedData.push(price[1]);
 
     trainAndPredict(seedData);
@@ -29,13 +33,11 @@ axios.get(coinGeckoURL, {}).then(
 );
 
 trainAndPredict = (seedData) => {
-  console.log("Seed data", seedData);
-
   const config = {
     iterations: 5000,
     learningRate: 0.005,
     errorThresh: 0.02,
-    log: true,
+    //log: true,
   };
 
   const net1 = new brain.recurrent.RNNTimeStep();
